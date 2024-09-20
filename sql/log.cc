@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mf_wcomp.h"
 #include "m_string.h"
 #include "my_sys.h"
 #include "mysql/components/services/log_builtins.h"
@@ -686,31 +687,68 @@ err:
 }
 
 char* extract_username(const char* user_host) {
-    // Find the position of the opening bracket '['
     const char* bracket_pos = strchr(user_host, '[');
 
-    // Determine the length of the username part
     size_t length;
     if (bracket_pos != NULL) {
         length = bracket_pos - user_host;
     } else {
-        // If no bracket is found, use the entire string
         length = strlen(user_host);
     }
 
-    // Allocate memory for the username (+1 for the null terminator)
     char* username = (char*)malloc(length + 1);
     if (username == NULL) {
-        // Handle memory allocation failure
-        fprintf(stderr, "Memory allocation failed\n");
-        exit(EXIT_FAILURE);
+      return NULL;
     }
 
-    // Copy the username part to the allocated memory and null-terminate
     strncpy(username, user_host, length);
     username[length] = '\0';
 
     return username;
+}
+
+char* transform_string(const char *input) {
+    // Find the positions of " @ " in the input string
+    const char *at_pos = strstr(input, " @ ");
+    if (!at_pos) return NULL;
+
+    // Find start of the user string, end of the user (just before '[')
+    const char *user_start = input;
+    const char *user_end = strchr(input, '[');
+    if (!user_end) return NULL;
+
+    // Calculate lengths
+    size_t user_len = user_end - user_start;
+    size_t address_len = strlen(at_pos + 3);
+
+    // Allocate memory for the transformed string (extra 6 for 4 quotes and 2 '@')
+    size_t transformed_len = user_len + address_len + 6;
+    char *transformed = (char*)malloc(transformed_len);
+    if (!transformed) return NULL;
+
+    // Fill the transformed string with the format 'user'@'address'
+    snprintf(transformed, transformed_len, "'%.*s'@'%.*s'", (int)user_len, user_start, (int)(strchr(at_pos, '[') - at_pos - 4), at_pos + 3);
+
+    return transformed;
+}
+
+bool contains_user_host(const char *input, const char *user_host) {
+    const char *ptr = input;
+
+    while (*ptr) {
+        const char* semicolon_ptr = strchr(ptr, ';');
+        if(semicolon_ptr == 0) {
+          semicolon_ptr = strchr(ptr, 0);
+        }
+        if(wild_compare(user_host, strlen(user_host), ptr, semicolon_ptr-ptr, false) == 0) {
+          return true;
+        }
+        ptr = semicolon_ptr;
+        if (!ptr) break;
+        ptr++;
+    }
+
+    return false;
 }
 
 bool File_query_log::write_slow(THD *thd, ulonglong current_utime,
@@ -719,12 +757,15 @@ bool File_query_log::write_slow(THD *thd, ulonglong current_utime,
                                 ulonglong query_utime, ulonglong lock_utime,
                                 bool is_command, const char *sql_text,
                                 size_t sql_text_len) {
-  char* username = extract_username(user_host);
-  if(strcmp(username, opt_log_slow_excluded_user) == 0) {
-    free(username);
+  char* tr = transform_string(user_host);
+  if(tr == NULL) {
+    goto err;
+  }
+  if(contains_user_host(opt_log_slow_excluded_user, tr)) {
+    free(tr);
     return false;
   }
-  free(username);
+  free(tr);
 
   char buff[80], *end;
   char query_time_buff[22 + 7], lock_time_buff[22 + 7];
