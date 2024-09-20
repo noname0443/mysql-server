@@ -1201,6 +1201,7 @@ bool opt_bin_log;
 bool opt_general_log, opt_slow_log, opt_general_log_raw;
 ulonglong log_output_options;
 bool opt_log_queries_not_using_indexes = false;
+char *opt_log_slow_excluded_user = nullptr;
 ulong opt_log_throttle_queries_not_using_indexes = 0;
 bool opt_log_slow_extra = false;
 bool opt_disable_networking = false, opt_skip_show_db = false;

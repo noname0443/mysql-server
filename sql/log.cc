@@ -685,12 +685,47 @@ err:
   return true;
 }
 
+char* extract_username(const char* user_host) {
+    // Find the position of the opening bracket '['
+    const char* bracket_pos = strchr(user_host, '[');
+
+    // Determine the length of the username part
+    size_t length;
+    if (bracket_pos != NULL) {
+        length = bracket_pos - user_host;
+    } else {
+        // If no bracket is found, use the entire string
+        length = strlen(user_host);
+    }
+
+    // Allocate memory for the username (+1 for the null terminator)
+    char* username = (char*)malloc(length + 1);
+    if (username == NULL) {
+        // Handle memory allocation failure
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy the username part to the allocated memory and null-terminate
+    strncpy(username, user_host, length);
+    username[length] = '\0';
+
+    return username;
+}
+
 bool File_query_log::write_slow(THD *thd, ulonglong current_utime,
                                 ulonglong query_start_utime,
                                 const char *user_host, size_t,
                                 ulonglong query_utime, ulonglong lock_utime,
                                 bool is_command, const char *sql_text,
                                 size_t sql_text_len) {
+  char* username = extract_username(user_host);
+  if(strcmp(username, opt_log_slow_excluded_user) == 0) {
+    free(username);
+    return false;
+  }
+  free(username);
+
   char buff[80], *end;
   char query_time_buff[22 + 7], lock_time_buff[22 + 7];
   size_t buff_len;

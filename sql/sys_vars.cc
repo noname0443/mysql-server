@@ -5842,6 +5842,13 @@ static bool check_slow_log_extra(sys_var *, THD *thd, set_var *) {
   return false;
 }
 
+static Sys_var_charptr Sys_slow_excluded_user(
+    "log_slow_exclude",
+    "Exclude user",
+    GLOBAL_VAR(opt_log_slow_excluded_user),
+    CMD_LINE(OPT_ARG), IN_FS_CHARSET,
+    DEFAULT(""));
+
 static Sys_var_bool Sys_slow_log_extra(
     "log_slow_extra",
     "Print more attributes to the slow query log file. Has no effect on "
